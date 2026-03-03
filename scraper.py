@@ -1,54 +1,43 @@
 import sys
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-
-def fetch_page(url):
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()
-    return response.text
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python scraper.py <url>")
-        sys.exit(1)
-
+        return
     url = sys.argv[1]
-    if not url.startswith("http://") and not url.startswith("https://"):
+    if not url.startswith("http"):
         url = "https://" + url
 
+    options = Options()
+    options.add_argument("--headless=new")
+
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(10)   # wait up to 10 sec for elements
+
     try:
-        html = fetch_page(url)
-    except Exception as e:
-        print("Error fetching page:")
-        print(e)
-        sys.exit(1)
+        driver.get(url)
+        
+        # Title
+        print(driver.title)
 
-    soup = BeautifulSoup(html, "html.parser")
+        # Body text
+        body = driver.find_element(By.TAG_NAME, "body")
+        print(body.text)
 
-    # Remove scripts and styles
-    for tag in soup(["script", "style"]):
-        tag.decompose()
+        # Links
+        links = driver.find_elements(By.TAG_NAME, "a")
+        seen = set()
 
-    # Title
-    title = ""
-    if soup.title and soup.title.string:
-        title = soup.title.string.strip()
-    print(title)
+        for link in links:
+            href = link.get_attribute("href")
+            if href and href not in seen:
+                print(href)
+                seen.add(href)
 
-    # Body text
-    body = soup.body
-    if body:
-        body_text = body.get_text(separator=" ")
-        body_text = " ".join(body_text.split())
-    else:
-        body_text = ""
-    print(body_text)
-
-    # links (one per line)
-    for link in soup.find_all("a", href=True):
-        full_url = urljoin(url, link["href"])
-        print(full_url)
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     main()
